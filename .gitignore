@@ -1,0 +1,27 @@
+# Dependencias
+/vendor/
+/node_modules/
+/.pnp
+.pnp.js
+
+# Laravel
+/modern/bootstrap/cache/
+/modern/storage/*.key
+/modern/storage/framework/cache/data/
+/modern/storage/framework/sessions/
+/modern/storage/framework/views/
+/modern/storage/logs/
+/modern/.env
+/modern/.phpunit.result.cache
+/modern/coverage/
+
+# Infra local
+.env
+.docker/
+
+# IDE / SO
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db

@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  quality:
+    name: Lint, Static Analysis & Tests
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: secret
+          MYSQL_DATABASE: legacy_modernizer
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, dom, fileinfo, mysql, pdo_mysql
+          coverage: xdebug
+
+      - name: Get composer cache dir
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache composer
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ hashFiles('modern/composer.lock') }}
+          restore-keys: composer-
+
+      - name: Install dependencies
+        working-directory: modern
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: Copy env
+        working-directory: modern
+        run: cp .env.example .env
+
+      - name: Laravel Pint (code style)
+        working-directory: modern
+        run: ./vendor/bin/pint --test
+
+      - name: PHPStan (static analysis - max level)
+        working-directory: modern
+        run: ./vendor/bin/phpstan analyse --memory-limit=1G
+
+      - name: Rector (no legacy code allowed)
+        working-directory: modern
+        run: ./vendor/bin/rector --dry-run
+
+      - name: Run tests with coverage
+        working-directory: modern
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: legacy_modernizer
+          DB_USERNAME: root
+          DB_PASSWORD: secret
+        run: ./vendor/bin/pest --coverage --min=70

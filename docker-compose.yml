@@ -1,0 +1,66 @@
+services:
+  app:
+    build:
+      context: ./modern
+      dockerfile: Dockerfile
+    container_name: lm_app
+    restart: unless-stopped
+    working_dir: /var/www
+    volumes:
+      - ./modern:/var/www
+    networks:
+      - lm_net
+    depends_on:
+      db:
+        condition: service_healthy
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: lm_nginx
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - ./modern:/var/www
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - lm_net
+    depends_on:
+      - app
+
+  db:
+    image: mysql:8.0
+    container_name: lm_db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:-legacy_modernizer}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-secret}
+      MYSQL_USER: ${DB_USERNAME:-lm}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-secret}
+    ports:
+      - "3307:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lm_net
+
+  redis:
+    image: redis:7-alpine
+    container_name: lm_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - lm_net
+
+volumes:
+  db_data:
+
+networks:
+  lm_net:
+    driver: bridge
